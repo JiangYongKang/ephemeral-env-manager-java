@@ -37,3 +37,5 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### 本地运行时状态目录（租约 JSON 快照）###
+.ephemeral-env/
