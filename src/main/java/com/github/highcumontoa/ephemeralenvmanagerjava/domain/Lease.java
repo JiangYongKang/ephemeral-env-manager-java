@@ -12,6 +12,10 @@ public class Lease {
     private long expiresAtMillis;
     private int leaseVersion;
     private int releaseAttempts;
+    /** 进入当前状态的时间（毫秒），用于计算“在该阶段停留了多久”。 */
+    private long stateEnteredAtMillis;
+    /** 最近一次回收失败的原因（无失败记录时为 null）。 */
+    private String lastReclaimError;
 
     public Lease() {
     }
@@ -70,5 +74,21 @@ public class Lease {
 
     public void setReleaseAttempts(int releaseAttempts) {
         this.releaseAttempts = releaseAttempts;
+    }
+
+    public long getStateEnteredAtMillis() {
+        return stateEnteredAtMillis;
+    }
+
+    public void setStateEnteredAtMillis(long stateEnteredAtMillis) {
+        this.stateEnteredAtMillis = stateEnteredAtMillis;
+    }
+
+    public String getLastReclaimError() {
+        return lastReclaimError;
+    }
+
+    public void setLastReclaimError(String lastReclaimError) {
+        this.lastReclaimError = lastReclaimError;
     }
 }

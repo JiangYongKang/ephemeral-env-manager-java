@@ -15,6 +15,7 @@ public class LocalResourceBackend implements ResourceBackend {
 
     private final Set<String> allocated = ConcurrentHashMap.newKeySet();
     private final Set<String> failNextDeallocate = ConcurrentHashMap.newKeySet();
+    private final Set<String> failAlwaysDeallocate = ConcurrentHashMap.newKeySet();
     private final EphemeralProperties properties;
 
     public LocalResourceBackend(EphemeralProperties properties) {
@@ -43,6 +44,9 @@ public class LocalResourceBackend implements ResourceBackend {
     public void deallocate(String name) {
         // 幂等归还：重复调用、归还不存在的资源都不产生副作用。
         // 失败注入：下一次对该资源的归还抛异常，之后恢复正常，用于模拟可重试故障。
+        if (failAlwaysDeallocate.contains(name)) {
+            throw new ResourceException("injected persistent deallocation failure: env=" + name);
+        }
         if (failNextDeallocate.remove(name)) {
             throw new ResourceException("injected transient deallocation failure: env=" + name);
         }
@@ -54,9 +58,26 @@ public class LocalResourceBackend implements ResourceBackend {
         return allocated.size();
     }
 
+    @Override
+    public void releaseAccounting(String name) {
+        // 兜底摘除：只动容量账目，不触发失败注入，保证“摘得出”。
+        allocated.remove(name);
+    }
+
     /** 测试支持：让下一次对 name 的归还失败一次。 */
     public void injectDeallocateFailureOnce(String name) {
         failNextDeallocate.add(name);
+    }
+
+    /** 测试支持：让对 name 的归还持续失败，直到 {@link #clearInjectedFailure(String)}。 */
+    public void injectDeallocateFailureAlways(String name) {
+        failAlwaysDeallocate.add(name);
+    }
+
+    /** 测试支持：清除对 name 的所有失败注入。 */
+    public void clearInjectedFailure(String name) {
+        failAlwaysDeallocate.remove(name);
+        failNextDeallocate.remove(name);
     }
 
     /** 测试支持：某资源当前是否仍被占用。 */

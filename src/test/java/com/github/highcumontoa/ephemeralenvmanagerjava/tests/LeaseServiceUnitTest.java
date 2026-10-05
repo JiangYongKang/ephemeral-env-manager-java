@@ -59,7 +59,7 @@ class LeaseServiceUnitTest {
                 return List.of();
             }
         };
-        Reclaimer reclaimer = new Reclaimer(repository, backend, noopSnapshot, clock);
+        Reclaimer reclaimer = new Reclaimer(repository, backend, noopSnapshot, props, clock);
         LeaseService service = new LeaseService(repository, backend, reclaimer, noopSnapshot, props, clock);
         return new Harness(clock, service, repository, backend, reclaimer);
     }

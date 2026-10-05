@@ -25,6 +25,12 @@ public class EphemeralProperties {
     /** 本地快照文件路径。 */
     private String snapshotPath = "data/leases-snapshot.json";
 
+    /** 回收失败达到该次数后升级为 RECLAIM_STUCK 并从容量账目中摘除。 */
+    private int reclaimStuckAfterAttempts = 5;
+
+    /** 在 RELEASING 停留超过该时长（毫秒）即升级为 RECLAIM_STUCK。 */
+    private long reclaimStuckAfterMillis = 300_000L;
+
     public int getMaxActiveEnvironments() {
         return maxActiveEnvironments;
     }
@@ -63,5 +69,21 @@ public class EphemeralProperties {
 
     public void setSnapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
+    }
+
+    public int getReclaimStuckAfterAttempts() {
+        return reclaimStuckAfterAttempts;
+    }
+
+    public void setReclaimStuckAfterAttempts(int reclaimStuckAfterAttempts) {
+        this.reclaimStuckAfterAttempts = reclaimStuckAfterAttempts;
+    }
+
+    public long getReclaimStuckAfterMillis() {
+        return reclaimStuckAfterMillis;
+    }
+
+    public void setReclaimStuckAfterMillis(long reclaimStuckAfterMillis) {
+        this.reclaimStuckAfterMillis = reclaimStuckAfterMillis;
     }
 }

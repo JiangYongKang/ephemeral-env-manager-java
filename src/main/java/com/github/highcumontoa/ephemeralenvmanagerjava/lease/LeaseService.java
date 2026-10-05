@@ -99,6 +99,7 @@ public class LeaseService {
             if (lease.getExpiresAtMillis() <= now) {
                 // 到期与续租竞争：以时钟判定为准，已到期则续租被拒绝，等待回收。
                 lease.setState(LeaseState.EXPIRED);
+                lease.setStateEnteredAtMillis(now);
                 throw new LeaseException(RejectReason.NOT_ACTIVE,
                         "lease expired at " + lease.getExpiresAtMillis()
                                 + ", now=" + now + ": " + name);
@@ -118,6 +119,7 @@ public class LeaseService {
     }
 
     public Lease release(String name, ReleaseRequest request) {
+        long now = clock.nowMillis();
         Lease updated = repository.mutate(name, lease -> {
             if (lease.getState() == LeaseState.RELEASED) {
                 // 重复释放幂等返回，不产生副作用。
@@ -130,6 +132,7 @@ public class LeaseService {
                                 + ", requested by " + request.owner());
             }
             lease.setState(LeaseState.RELEASING);
+            lease.setStateEnteredAtMillis(now);
             return lease;
         });
         if (updated == null) {
@@ -173,6 +176,7 @@ public class LeaseService {
         lease.setExpiresAtMillis(now + ttl);
         lease.setLeaseVersion(1);
         lease.setReleaseAttempts(0);
+        lease.setStateEnteredAtMillis(now);
         return lease;
     }
 

@@ -52,7 +52,7 @@ class RestartRecoveryTest {
         LeaseRepository repo1 = new InMemoryLeaseRepository();
         LocalResourceBackend backend1 = new LocalResourceBackend(props1);
         SnapshotStore store1 = new LocalFileSnapshotStore(props1);
-        Reclaimer reclaimer1 = new Reclaimer(repo1, backend1, store1, clock1);
+        Reclaimer reclaimer1 = new Reclaimer(repo1, backend1, store1, props1, clock1);
         LeaseService service1 = new LeaseService(repo1, backend1, reclaimer1, store1, props1, clock1);
 
         service1.acquire(new CreateRequest("surviving", "alice", 100_000));
@@ -80,7 +80,7 @@ class RestartRecoveryTest {
         LeaseRepository repo2 = new InMemoryLeaseRepository();
         LocalResourceBackend backend2 = new LocalResourceBackend(props2);
         SnapshotStore store2 = new LocalFileSnapshotStore(props2);
-        Reclaimer reclaimer2 = new Reclaimer(repo2, backend2, store2, clock2);
+        Reclaimer reclaimer2 = new Reclaimer(repo2, backend2, store2, props2, clock2);
         RecoveryService recovery = new RecoveryService(store2, repo2, backend2, reclaimer2);
         recovery.run(null);
 

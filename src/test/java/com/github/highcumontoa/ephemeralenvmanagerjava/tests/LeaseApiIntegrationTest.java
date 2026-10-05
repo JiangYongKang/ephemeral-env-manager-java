@@ -125,5 +125,21 @@ class LeaseApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("RELEASED"));
         System.out.println("[input] 重复释放 -> [judge] 200 幂等 RELEASED");
+
+        // 回收进度查询（只读）：当前无未回收干净的环境
+        mvc.perform(get("/api/leases/reclaim-pending"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        System.out.println("[input] GET /api/leases/reclaim-pending -> [judge] 200 空列表");
+
+        // 手动重试：已释放环境 -> ALREADY_RELEASED；不存在 -> NOT_FOUND
+        mvc.perform(post("/api/leases/web-env/reclaim-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("ALREADY_RELEASED"));
+        System.out.println("[input] 已释放环境手动重试 -> [judge] 200 ALREADY_RELEASED");
+        mvc.perform(post("/api/leases/ghost/reclaim-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("NOT_FOUND"));
+        System.out.println("[input] 不存在环境手动重试 -> [judge] 200 NOT_FOUND");
     }
 }

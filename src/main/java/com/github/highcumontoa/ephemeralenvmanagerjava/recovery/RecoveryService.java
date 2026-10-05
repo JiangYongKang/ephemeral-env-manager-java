@@ -44,10 +44,17 @@ public class RecoveryService implements ApplicationRunner {
         }
         repository.replaceAll(snapshot);
 
+        long now = System.currentTimeMillis();
         int reallocated = 0;
         for (Lease lease : snapshot) {
-            // 未终结的租约在重启前占用了底层资源，恢复占用以保持配额一致。
-            if (lease.getState() != LeaseState.RELEASED) {
+            // 旧版本快照可能缺少 stateEnteredAtMillis：以恢复时刻归一化，保证停留时长可解释。
+            if (lease.getStateEnteredAtMillis() <= 0) {
+                lease.setStateEnteredAtMillis(now);
+            }
+            // 未终结且未摘除的租约在重启前占用了底层资源，恢复占用以保持配额一致。
+            // RECLAIM_STUCK 已在升级时从容量账目中摘除，重启后同样不占容量。
+            if (lease.getState() != LeaseState.RELEASED
+                    && lease.getState() != LeaseState.RECLAIM_STUCK) {
                 backend.allocate(lease.getName());
                 reallocated++;
             }
