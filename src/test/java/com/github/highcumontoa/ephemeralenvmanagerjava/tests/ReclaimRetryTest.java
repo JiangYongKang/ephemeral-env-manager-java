@@ -41,7 +41,7 @@ class ReclaimRetryTest {
         LeaseRepository repository = new InMemoryLeaseRepository();
         LocalResourceBackend backend = new LocalResourceBackend(props);
         SnapshotStore store = new LocalFileSnapshotStore(props);
-        Reclaimer reclaimer = new Reclaimer(repository, backend, store, clock);
+        Reclaimer reclaimer = new Reclaimer(repository, backend, store, props, clock);
         LeaseService service = new LeaseService(repository, backend, reclaimer, store, props, clock);
         return new Harness(clock, service, repository, backend, reclaimer, store);
     }

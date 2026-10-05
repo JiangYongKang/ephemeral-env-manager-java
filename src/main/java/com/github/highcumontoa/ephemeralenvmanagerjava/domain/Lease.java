@@ -12,8 +12,20 @@ public class Lease {
     private long expiresAtMillis;
     private int leaseVersion;
     private int releaseAttempts;
+    /** 进入当前状态的时刻（毫秒），用于观测“在该阶段停留了多久”。 */
+    private long stateEnteredAtMillis;
+    /** 最近一次归还失败的原因（无失败或未失败过为 null）。 */
+    private String lastFailureReason;
 
     public Lease() {
+    }
+
+    /**
+     * 迁移到新状态并记录进入时刻；所有状态变更应通过此方法，保证停留时长可观测。
+     */
+    public void transitionTo(LeaseState next, long nowMillis) {
+        this.state = next;
+        this.stateEnteredAtMillis = nowMillis;
     }
 
     public String getName() {
@@ -70,5 +82,21 @@ public class Lease {
 
     public void setReleaseAttempts(int releaseAttempts) {
         this.releaseAttempts = releaseAttempts;
+    }
+
+    public long getStateEnteredAtMillis() {
+        return stateEnteredAtMillis;
+    }
+
+    public void setStateEnteredAtMillis(long stateEnteredAtMillis) {
+        this.stateEnteredAtMillis = stateEnteredAtMillis;
+    }
+
+    public String getLastFailureReason() {
+        return lastFailureReason;
+    }
+
+    public void setLastFailureReason(String lastFailureReason) {
+        this.lastFailureReason = lastFailureReason;
     }
 }

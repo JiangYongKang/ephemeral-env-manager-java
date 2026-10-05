@@ -17,6 +17,12 @@ public interface ResourceBackend {
     void deallocate(String name);
 
     /**
+     * 卡死兜底：仅把资源从容量账目中摘除，使配额可被正常创建复用。
+     * 不表达“资源已归还成功”的语义（底层资源可能仍有故障），必须幂等。
+     */
+    void evict(String name);
+
+    /**
      * 当前已占用资源数。
      */
     int allocatedCount();

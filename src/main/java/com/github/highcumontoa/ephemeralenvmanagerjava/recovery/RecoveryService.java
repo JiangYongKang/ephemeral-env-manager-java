@@ -45,14 +45,20 @@ public class RecoveryService implements ApplicationRunner {
         repository.replaceAll(snapshot);
 
         int reallocated = 0;
+        int quarantined = 0;
         for (Lease lease : snapshot) {
             // 未终结的租约在重启前占用了底层资源，恢复占用以保持配额一致。
-            if (lease.getState() != LeaseState.RELEASED) {
+            // QUARANTINED 除外：它已被兜底规则从容量账目摘除，重启后继续保持不占配额，
+            // 其重试进度（attempts/最近失败原因/进入时刻）随快照原样恢复。
+            if (lease.getState() == LeaseState.QUARANTINED) {
+                quarantined++;
+            } else if (lease.getState() != LeaseState.RELEASED) {
                 backend.allocate(lease.getName());
                 reallocated++;
             }
         }
-        log.info("recovery: restored {} leases, reallocated {} resources", snapshot.size(), reallocated);
+        log.info("recovery: restored {} leases, reallocated {} resources, quarantined={}",
+                snapshot.size(), reallocated, quarantined);
 
         // 到期与回收中的租约立即继续回收；失败由后台扫描重试。
         int reclaimed = reclaimer.reclaimExpired();

@@ -98,7 +98,7 @@ public class LeaseService {
             }
             if (lease.getExpiresAtMillis() <= now) {
                 // 到期与续租竞争：以时钟判定为准，已到期则续租被拒绝，等待回收。
-                lease.setState(LeaseState.EXPIRED);
+                lease.transitionTo(LeaseState.EXPIRED, now);
                 throw new LeaseException(RejectReason.NOT_ACTIVE,
                         "lease expired at " + lease.getExpiresAtMillis()
                                 + ", now=" + now + ": " + name);
@@ -129,7 +129,7 @@ public class LeaseService {
                         "owner mismatch: lease owned by " + lease.getOwner()
                                 + ", requested by " + request.owner());
             }
-            lease.setState(LeaseState.RELEASING);
+            lease.transitionTo(LeaseState.RELEASING, clock.nowMillis());
             return lease;
         });
         if (updated == null) {
@@ -173,6 +173,7 @@ public class LeaseService {
         lease.setExpiresAtMillis(now + ttl);
         lease.setLeaseVersion(1);
         lease.setReleaseAttempts(0);
+        lease.setStateEnteredAtMillis(now);
         return lease;
     }
 

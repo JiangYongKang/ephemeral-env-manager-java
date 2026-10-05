@@ -3,8 +3,10 @@ package com.github.highcumontoa.ephemeralenvmanagerjava.reclaim;
 import com.github.highcumontoa.ephemeralenvmanagerjava.config.EphemeralProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 基于本地内存集合的资源后端，带容量上限与可配置的失败注入。
@@ -15,6 +17,8 @@ public class LocalResourceBackend implements ResourceBackend {
 
     private final Set<String> allocated = ConcurrentHashMap.newKeySet();
     private final Set<String> failNextDeallocate = ConcurrentHashMap.newKeySet();
+    private final Set<String> failAlwaysDeallocate = ConcurrentHashMap.newKeySet();
+    private final Map<String, AtomicInteger> deallocateCalls = new ConcurrentHashMap<>();
     private final EphemeralProperties properties;
 
     public LocalResourceBackend(EphemeralProperties properties) {
@@ -42,11 +46,23 @@ public class LocalResourceBackend implements ResourceBackend {
     @Override
     public void deallocate(String name) {
         // 幂等归还：重复调用、归还不存在的资源都不产生副作用。
-        // 失败注入：下一次对该资源的归还抛异常，之后恢复正常，用于模拟可重试故障。
+        // 失败注入：模拟可重试故障（一次性或持续性），用于测试重试与兜底。
+        deallocateCalls.computeIfAbsent(name, k -> new AtomicInteger()).incrementAndGet();
+        if (failAlwaysDeallocate.contains(name)) {
+            throw new ResourceException("injected persistent deallocation failure: env=" + name);
+        }
         if (failNextDeallocate.remove(name)) {
             throw new ResourceException("injected transient deallocation failure: env=" + name);
         }
         allocated.remove(name);
+    }
+
+    @Override
+    public void evict(String name) {
+        // 仅从容量账目摘除：不受失败注入影响，幂等。
+        synchronized (allocated) {
+            allocated.remove(name);
+        }
     }
 
     @Override
@@ -57,6 +73,23 @@ public class LocalResourceBackend implements ResourceBackend {
     /** 测试支持：让下一次对 name 的归还失败一次。 */
     public void injectDeallocateFailureOnce(String name) {
         failNextDeallocate.add(name);
+    }
+
+    /** 测试支持：让对 name 的归还持续失败，直到 {@link #clearDeallocateFailure(String)}。 */
+    public void injectDeallocateFailureAlways(String name) {
+        failAlwaysDeallocate.add(name);
+    }
+
+    /** 测试支持：清除对 name 的所有归还失败注入。 */
+    public void clearDeallocateFailure(String name) {
+        failAlwaysDeallocate.remove(name);
+        failNextDeallocate.remove(name);
+    }
+
+    /** 测试支持：对 name 的归还接口被调用的累计次数（含失败注入导致的失败调用）。 */
+    public int deallocateCallCount(String name) {
+        AtomicInteger count = deallocateCalls.get(name);
+        return count == null ? 0 : count.get();
     }
 
     /** 测试支持：某资源当前是否仍被占用。 */

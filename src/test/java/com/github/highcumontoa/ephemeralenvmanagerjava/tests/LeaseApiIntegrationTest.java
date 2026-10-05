@@ -27,6 +27,9 @@ class LeaseApiIntegrationTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private com.github.highcumontoa.ephemeralenvmanagerjava.reclaim.LocalResourceBackend backend;
+
     @Test
     void fullApiFlow_withDistinguishableErrors() throws Exception {
         // 创建成功
@@ -125,5 +128,73 @@ class LeaseApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("RELEASED"));
         System.out.println("[input] 重复释放 -> [judge] 200 幂等 RELEASED");
+    }
+
+    @Test
+    void reclaimProgressQuery_andManualRetry_overRest() throws Exception {
+        // 制造一个回收失败挂起的环境（后台扫描间隔调至 1 小时，不会干扰）。
+        mvc.perform(post("/api/leases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"ops-env","owner":"ops","ttlMillis":60000}
+                                """))
+                .andExpect(status().isOk());
+        backend.injectDeallocateFailureOnce("ops-env");
+        mvc.perform(post("/api/leases/ops-env/release")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"owner":"ops"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("RELEASING"));
+        System.out.println("[input] ops-env 释放时注入一次归还失败 -> [judge] 200 RELEASING");
+
+        // 只读进度查询：能看到阶段、重试次数、失败原因、停留时长。
+        mvc.perform(get("/api/leases/reclaiming"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name=='ops-env')].phase").value("RETRY_PENDING"))
+                .andExpect(jsonPath("$[?(@.name=='ops-env')].releaseAttempts").value(1))
+                .andExpect(jsonPath("$[?(@.name=='ops-env')].lastFailureReason").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.name=='ops-env')].stuckMillis").isNotEmpty());
+        System.out.println("[input] GET /api/leases/reclaiming -> [judge] ops-env 可见:"
+                + " phase=RETRY_PENDING attempts=1 reason 非空 stuckMillis 为数值");
+
+        // 手动重试：故障注入已消费，本次触发应归还成功。
+        mvc.perform(post("/api/leases/ops-env/reclaim-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("TRIGGERED"))
+                .andExpect(jsonPath("$.state").value("RELEASED"));
+        System.out.println("[input] POST /api/leases/ops-env/reclaim-retry -> [judge] TRIGGERED RELEASED");
+
+        // 已归还干净：可区分的 ALREADY_RELEASED。
+        mvc.perform(post("/api/leases/ops-env/reclaim-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("ALREADY_RELEASED"));
+        System.out.println("[input] 再次重试已归还环境 -> [judge] ALREADY_RELEASED");
+
+        // 不存在：404 NOT_FOUND。
+        mvc.perform(post("/api/leases/ghost-env/reclaim-retry"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.reason").value("NOT_FOUND"));
+        System.out.println("[input] 重试不存在的环境 -> [judge] 404 NOT_FOUND");
+
+        // 有效租期内的环境：NOT_DUE，且保持 ACTIVE。
+        mvc.perform(post("/api/leases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"ops-live","owner":"ops","ttlMillis":60000}
+                                """))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/leases/ops-live/reclaim-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("NOT_DUE"))
+                .andExpect(jsonPath("$.state").value("ACTIVE"));
+        System.out.println("[input] 重试有效租期内的环境 -> [judge] NOT_DUE 且保持 ACTIVE");
+
+        // 查询列表不再包含已干净的 ops-env。
+        mvc.perform(get("/api/leases/reclaiming"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name=='ops-env')]").isEmpty());
+        System.out.println("[input] 再次查询未回收干净列表 -> [judge] ops-env 已不在列表");
     }
 }

@@ -25,6 +25,12 @@ public class EphemeralProperties {
     /** 本地快照文件路径。 */
     private String snapshotPath = "data/leases-snapshot.json";
 
+    /**
+     * 卡死兜底阈值（毫秒）：租约在 RELEASING 停留超过该时长即升级为 QUARANTINED
+     * 并从容量账目摘除；<=0 表示关闭兜底升级。
+     */
+    private long reclaimStuckThresholdMillis = 60_000L;
+
     public int getMaxActiveEnvironments() {
         return maxActiveEnvironments;
     }
@@ -63,5 +69,13 @@ public class EphemeralProperties {
 
     public void setSnapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
+    }
+
+    public long getReclaimStuckThresholdMillis() {
+        return reclaimStuckThresholdMillis;
+    }
+
+    public void setReclaimStuckThresholdMillis(long reclaimStuckThresholdMillis) {
+        this.reclaimStuckThresholdMillis = reclaimStuckThresholdMillis;
     }
 }
